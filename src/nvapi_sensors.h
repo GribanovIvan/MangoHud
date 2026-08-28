@@ -15,7 +15,7 @@ class NvApiSensors {
         bool init(const char* pci_bus_id);
         bool available() const { return available_; }
 
-        // Rounded degrees celsius, or -1 when unavailable.
+        // Integer degrees celsius, truncated, or -1 when unavailable.
         int hotspot();
         int vram();
 

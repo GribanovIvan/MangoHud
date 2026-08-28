@@ -85,6 +85,23 @@ NVIDIA::NVIDIA(const char* pciBusId) {
 }
 
 #ifdef HAVE_NVML
+// NVAPI is independent of NVML, so this is sampled on its own rather than from
+// inside the NVML path: with only XNVCtrl available the values would otherwise
+// never be refreshed after the constructor seeded them.
+void NVIDIA::get_instant_metrics_nvapi(struct gpu_metrics *metrics, struct overlay_params *params) {
+    if (!nvapi.available())
+        return;
+
+    if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_junction_temp] || (logger && logger->is_active()))
+        metrics->junction_temp = nvapi.hotspot();
+
+    if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_mem_temp] || (logger && logger->is_active()))
+        metrics->memory_temp = nvapi.vram();
+
+    if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_voltage] || (logger && logger->is_active()))
+        metrics->voltage = nvapi.voltage();
+}
+
 void NVIDIA::get_instant_metrics_nvml(struct gpu_metrics *metrics, struct overlay_params *params) {
     nvmlReturn_t response;
 
@@ -107,15 +124,6 @@ void NVIDIA::get_instant_metrics_nvml(struct gpu_metrics *metrics, struct overla
             nvml->nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temp);
             metrics->temp = temp;
         }
-
-        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_junction_temp] || (logger && logger->is_active()))
-            metrics->junction_temp = nvapi.hotspot();
-
-        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_mem_temp] || (logger && logger->is_active()))
-            metrics->memory_temp = nvapi.vram();
-
-        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_voltage] || (logger && logger->is_active()))
-            metrics->voltage = nvapi.voltage();
 
         if (params->enabled[OVERLAY_PARAM_ENABLED_vram] || (logger && logger->is_active())) {
             struct nvmlMemory_st nvml_memory;
@@ -254,6 +262,7 @@ void NVIDIA::get_samples_and_copy() {
 #endif
 
         for (size_t cur_sample_id=0; cur_sample_id < METRICS_SAMPLE_COUNT; cur_sample_id++) {
+            NVIDIA::get_instant_metrics_nvapi(&metrics_buffer[cur_sample_id], params_p);
 #ifdef HAVE_NVML
         if (nvml_available)
             NVIDIA::get_instant_metrics_nvml(&metrics_buffer[cur_sample_id], params_p);

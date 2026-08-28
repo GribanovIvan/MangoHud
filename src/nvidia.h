@@ -85,6 +85,7 @@ class NVIDIA {
 
     private:
         NvApiSensors nvapi;
+        void get_instant_metrics_nvapi(struct gpu_metrics *metrics, struct overlay_params *params);
 
         pid_t pid = getpid();
         std::mutex metrics_mutex;

@@ -74,10 +74,11 @@ bool NvApiSensors::calculate_mask() {
         Thermals probe;
         memset(&probe, 0, sizeof(probe));
         probe.version = (uint32_t)(sizeof(Thermals) | (2 << 16));
-        probe.mask = 1 << bit;
+        const uint32_t probe_mask = 1u << bit;
+        probe.mask = (int32_t)probe_mask;
 
         if (get_thermals_(gpu_, &probe) != 0) {
-            mask_ = (1 << bit) - 1;
+            mask_ = (int32_t)(probe_mask - 1u);
             return mask_ != 0;
         }
     }
