@@ -1,5 +1,6 @@
 #pragma once
 #include "gpu.h"
+#include "nvapi_sensors.h"
 #ifdef HAVE_NVML
 #include "loaders/loader_nvml.h"
 #endif
@@ -83,6 +84,8 @@ class NVIDIA {
         }
 
     private:
+        NvApiSensors nvapi;
+
         pid_t pid = getpid();
         std::mutex metrics_mutex;
         gpu_metrics metrics;
