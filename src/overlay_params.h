@@ -11,7 +11,6 @@
 #include <map>
 #include <optional>
 #include <vulkan/vulkan_core.h>
-#include "../mangohud-next/render/colors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,7 +58,6 @@ struct Tracepoint;
    OVERLAY_PARAM_BOOL(procmem)                       \
    OVERLAY_PARAM_BOOL(procmem_shared)                \
    OVERLAY_PARAM_BOOL(procmem_virt)                  \
-   OVERLAY_PARAM_BOOL(cgroup_mem)                    \
    OVERLAY_PARAM_BOOL(time)                          \
    OVERLAY_PARAM_BOOL(full)                          \
    OVERLAY_PARAM_BOOL(read_cfg)                      \
@@ -82,7 +80,6 @@ struct Tracepoint;
    OVERLAY_PARAM_BOOL(graphs)                        \
    OVERLAY_PARAM_BOOL(legacy_layout)                 \
    OVERLAY_PARAM_BOOL(cpu_mhz)                       \
-   OVERLAY_PARAM_BOOL(cpu_max_core_load)             \
    OVERLAY_PARAM_BOOL(frametime)                     \
    OVERLAY_PARAM_BOOL(frame_count)                   \
    OVERLAY_PARAM_BOOL(resolution)                    \
@@ -194,6 +191,7 @@ struct Tracepoint;
    OVERLAY_PARAM_CUSTOM(alpha)                       \
    OVERLAY_PARAM_CUSTOM(log_duration)                \
    OVERLAY_PARAM_CUSTOM(pci_dev)                     \
+   OVERLAY_PARAM_CUSTOM(gpu_voltage_pci_dev)         \
    OVERLAY_PARAM_CUSTOM(media_player_name)           \
    OVERLAY_PARAM_CUSTOM(media_player_color)          \
    OVERLAY_PARAM_CUSTOM(media_player_format)         \
@@ -279,6 +277,16 @@ enum overlay_param_enabled {
    OVERLAY_PARAM_ENABLED_MAX
 };
 
+/* avoid importing vulkan headers
+ * also combine colorspaces that use the same transfer function
+ */
+enum overlay_transfer_function {
+   NONE = 0,
+   SRGB = (1 << 0),
+   PQ = (1 << 1), /* HDR10 ST2084 */
+   HLG = (1 << 2) /* HDR10 */
+};
+
 struct overlay_params {
    bool enabled[OVERLAY_PARAM_ENABLED_MAX];
    enum overlay_param_position position;
@@ -331,6 +339,7 @@ struct overlay_params {
    std::vector<KeySym> reset_fps_metrics;
    std::string time_format, output_folder, output_file;
    std::string pci_dev;
+   std::string gpu_voltage_pci_dev;
    std::string media_player_name;
    std::string cpu_text, fps_text;
    std::map<std::string, std::string> cpu_custom_temp_sensor;
@@ -359,6 +368,7 @@ struct overlay_params {
    std::vector<std::string> fps_metrics;
    std::vector<std::string> network;
    std::vector<unsigned> gpu_list;
+   int transfer_function;
 
    struct fex_stats_options {
       bool enabled {false};
