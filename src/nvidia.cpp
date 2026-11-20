@@ -46,6 +46,16 @@ NVIDIA::NVIDIA(const char* pciBusId) {
     }
 #endif
 
+    // NVML has no hotspot sensor on GeForce; NVAPI does.
+    if (nvapi.init(pciBusId)) {
+        // Seed before the sampling thread starts. Whether the sensor exists is
+        // known now, so the first frame can already show it - otherwise the row
+        // only appears one update later and shifts the layout under it.
+        metrics.junction_temp = nvapi.hotspot();
+        metrics.memory_temp = nvapi.vram();
+        metrics.voltage = nvapi.voltage();
+    }
+
 #if defined(HAVE_XNVCTRL) && defined(HAVE_X11)
     if (!get_libx11()->IsLoaded())
         SPDLOG_DEBUG("XNVCtrl: X11 not loaded");
@@ -74,12 +84,31 @@ NVIDIA::NVIDIA(const char* pciBusId) {
     }
 }
 
+// NVAPI is independent of NVML, so this is sampled on its own rather than from
+// inside the NVML path: with only XNVCtrl available the values would otherwise
+// never be refreshed after the constructor seeded them.
+void NVIDIA::get_instant_metrics_nvapi(struct gpu_metrics *metrics, struct overlay_params *params) {
+    if (!nvapi.available())
+        return;
+
+    if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_junction_temp] || (logger && logger->is_active()))
+        metrics->junction_temp = nvapi.hotspot();
+
+    if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_mem_temp] || (logger && logger->is_active()))
+        metrics->memory_temp = nvapi.vram();
+
+    if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_voltage] || (logger && logger->is_active()))
+        metrics->voltage = nvapi.voltage();
+}
+
 #ifdef HAVE_NVML
 void NVIDIA::get_instant_metrics_nvml(struct gpu_metrics *metrics, struct overlay_params *params) {
     nvmlReturn_t response;
 
     if (nvml && nvml_available) {
-        struct nvmlUtilization_st nvml_utilization = {};
+        nvml_get_process_info();
+
+        struct nvmlUtilization_st nvml_utilization;
         response = nvml->nvmlDeviceGetUtilizationRates(device, &nvml_utilization);
         if (response == NVML_ERROR_NOT_SUPPORTED) {
             SPDLOG_ERROR("nvmlDeviceGetUtilizationRates failed, disabling nvml metrics");
@@ -88,70 +117,46 @@ void NVIDIA::get_instant_metrics_nvml(struct gpu_metrics *metrics, struct overla
             return;
         }
 
-        const auto now = std::chrono::steady_clock::now();
-        if (last_slow_poll == std::chrono::steady_clock::time_point{} ||
-            now - last_slow_poll >= std::chrono::milliseconds(METRICS_UPDATE_PERIOD_MS)) {
-            last_slow_poll = now;
-            cached_slow_metrics = {};
-            const bool log_active = logger && logger->is_active();
-
-            nvml_get_process_info();
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_temp] || log_active) {
-                unsigned int temp = 0;
-                nvml->nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temp);
-                cached_slow_metrics.temp = temp;
-            }
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_vram] || log_active) {
-                struct nvmlMemory_st nvml_memory = {};
-                nvml->nvmlDeviceGetMemoryInfo(device, &nvml_memory);
-                cached_slow_metrics.memoryTotal = nvml_memory.total / (1024.f * 1024.f * 1024.f);
-                cached_slow_metrics.sys_vram_used = nvml_memory.used / (1024.f * 1024.f * 1024.f);
-            }
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_proc_vram])
-                cached_slow_metrics.proc_vram_used = get_proc_vram() / (1024.f * 1024.f * 1024.f);
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_core_clock] || log_active) {
-                unsigned int core_clock = 0;
-                nvml->nvmlDeviceGetClockInfo(device, NVML_CLOCK_GRAPHICS, &core_clock);
-                cached_slow_metrics.CoreClock = core_clock;
-            }
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_mem_clock] || log_active) {
-                unsigned int memory_clock = 0;
-                nvml->nvmlDeviceGetClockInfo(device, NVML_CLOCK_MEM, &memory_clock);
-                cached_slow_metrics.MemClock = memory_clock;
-            }
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_power] || log_active) {
-                unsigned int power = 0, limit = 0;
-                nvml->nvmlDeviceGetPowerUsage(device, &power);
-                nvml->nvmlDeviceGetPowerManagementLimit(device, &limit);
-                cached_slow_metrics.powerUsage = power / 1000;
-                cached_slow_metrics.powerLimit = limit / 1000;
-            }
-
-            if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_fan] || log_active){
-                unsigned int fan_speed = 0;
-                nvml->nvmlDeviceGetFanSpeed(device, &fan_speed);
-                cached_slow_metrics.fan_speed = fan_speed;
-                cached_slow_metrics.fan_rpm = false;
-            }
-        #ifdef HAVE_XNVCTRL
-            if (nvctrl_available) {
-                cached_slow_metrics.fan_rpm = true;
-                cached_slow_metrics.fan_speed = NVIDIA::get_nvctrl_fan_speed();
-            }
-        #endif
-        }
-
-        *metrics = cached_slow_metrics;
         metrics->load = nvml_utilization.gpu;
 
+        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_temp] || (logger && logger->is_active())) {
+            unsigned int temp;
+            nvml->nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temp);
+            metrics->temp = temp;
+        }
+
+        if (params->enabled[OVERLAY_PARAM_ENABLED_vram] || (logger && logger->is_active())) {
+            struct nvmlMemory_st nvml_memory;
+            nvml->nvmlDeviceGetMemoryInfo(device, &nvml_memory);
+            metrics->memoryTotal = nvml_memory.total / (1024.f * 1024.f * 1024.f);
+            metrics->sys_vram_used = nvml_memory.used / (1024.f * 1024.f * 1024.f);
+        }
+
+        if (params->enabled[OVERLAY_PARAM_ENABLED_proc_vram])
+            metrics->proc_vram_used = get_proc_vram() / (1024.f * 1024.f * 1024.f);
+
+        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_core_clock] || (logger && logger->is_active())) {
+            unsigned int core_clock;
+            nvml->nvmlDeviceGetClockInfo(device, NVML_CLOCK_GRAPHICS, &core_clock);
+            metrics->CoreClock = core_clock;
+        }
+
+        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_mem_clock] || (logger && logger->is_active())) {
+            unsigned int memory_clock;
+            nvml->nvmlDeviceGetClockInfo(device, NVML_CLOCK_MEM, &memory_clock);
+            metrics->MemClock = memory_clock;
+        }
+
+        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_power] || (logger && logger->is_active())) {
+            unsigned int power, limit;
+            nvml->nvmlDeviceGetPowerUsage(device, &power);
+            nvml->nvmlDeviceGetPowerManagementLimit(device, &limit);
+            metrics->powerUsage = power / 1000;
+            metrics->powerLimit = limit / 1000;
+        }
+
         if (params->enabled[OVERLAY_PARAM_ENABLED_throttling_status]) {
-            unsigned long long nvml_throttle_reasons = 0;
+            unsigned long long nvml_throttle_reasons;
             nvml->nvmlDeviceGetCurrentClocksThrottleReasons(device, &nvml_throttle_reasons);
             metrics->is_temp_throttled = (nvml_throttle_reasons & 0x0000000000000060LL) != 0;
             metrics->is_power_throttled = (nvml_throttle_reasons & 0x000000000000008CLL) != 0;
@@ -159,6 +164,19 @@ void NVIDIA::get_instant_metrics_nvml(struct gpu_metrics *metrics, struct overla
             if (throttling)
 		        throttling->indep_throttle_status = nvml_throttle_reasons;
         }
+
+        if (params->enabled[OVERLAY_PARAM_ENABLED_gpu_fan] || (logger && logger->is_active())){
+            unsigned int fan_speed;
+            nvml->nvmlDeviceGetFanSpeed(device, &fan_speed);
+            metrics->fan_speed = fan_speed;
+            metrics->fan_rpm = false;
+        }
+    #ifdef HAVE_XNVCTRL
+        if (nvctrl_available) {
+            metrics->fan_rpm = true;
+            metrics->fan_speed = NVIDIA::get_nvctrl_fan_speed();
+        }
+    #endif
     }
 }
 #endif
@@ -244,6 +262,7 @@ void NVIDIA::get_samples_and_copy() {
 #endif
 
         for (size_t cur_sample_id=0; cur_sample_id < METRICS_SAMPLE_COUNT; cur_sample_id++) {
+            NVIDIA::get_instant_metrics_nvapi(&metrics_buffer[cur_sample_id], params_p);
 #ifdef HAVE_NVML
         if (nvml_available)
             NVIDIA::get_instant_metrics_nvml(&metrics_buffer[cur_sample_id], params_p);
@@ -266,6 +285,9 @@ void NVIDIA::get_samples_and_copy() {
         GPU_UPDATE_METRIC_AVERAGE(MemClock);
 
         GPU_UPDATE_METRIC_AVERAGE(temp);
+        GPU_UPDATE_METRIC_AVERAGE(junction_temp);
+        GPU_UPDATE_METRIC_AVERAGE(memory_temp);
+        GPU_UPDATE_METRIC_AVERAGE(voltage);
 
         GPU_UPDATE_METRIC_AVERAGE_FLOAT(memoryTotal);
         GPU_UPDATE_METRIC_AVERAGE_FLOAT(sys_vram_used);
