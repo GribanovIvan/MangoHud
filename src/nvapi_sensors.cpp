@@ -29,9 +29,6 @@ const int MAX_PLAUSIBLE_MILLIVOLTS = 2000;
 // Number of sensor slots NVAPI returns for the accepted mask.
 const int THERMAL_SLOTS = 40;
 
-// Number of sensor slots NVAPI returns for the accepted mask.
-const int THERMAL_SLOTS = 40;
-
 } // namespace
 
 NvApiSensors::~NvApiSensors() {
