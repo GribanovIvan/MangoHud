@@ -1,6 +1,6 @@
 #pragma once
 #include "gpu.h"
-#include <chrono>
+#include "nvapi_sensors.h"
 #ifdef HAVE_NVML
 #include "loaders/loader_nvml.h"
 #endif
@@ -84,6 +84,9 @@ class NVIDIA {
         }
 
     private:
+        NvApiSensors nvapi;
+        void get_instant_metrics_nvapi(struct gpu_metrics *metrics, struct overlay_params *params);
+
         pid_t pid = getpid();
         std::mutex metrics_mutex;
         gpu_metrics metrics;
@@ -94,8 +97,6 @@ class NVIDIA {
 
 #ifdef HAVE_NVML
         nvmlDevice_t device;
-        std::chrono::steady_clock::time_point last_slow_poll = {};
-        gpu_metrics cached_slow_metrics = {};
 
         std::vector<nvmlProcessInfo_v1_t> process_info = {};
 
