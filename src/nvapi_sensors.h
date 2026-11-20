@@ -57,13 +57,6 @@ class NvApiSensors {
         // RTX 4090 with driver 620.70.06: base 8, index 15 = 50.00 C, matching LACT.
         static const int VRAM_INDEX_OFFSET = 7;
 
-        // Ada (AD102, GDDR6X) accepts an 8-bit sensor mask and fills indices 8..15,
-        // so the verified GA107 index falls off the end and the readout is empty.
-        // Its memory die sits at the last filled slot, which is base + 7, where base
-        // is the first index NVAPI writes for the accepted mask. Measured on an
-        // RTX 4090 with driver 620.70.06: base 8, index 15 = 50.00 C, matching LACT.
-        static const int VRAM_INDEX_OFFSET = 7;
-
         void* library_ = nullptr;
         void* (*query_interface_)(uint32_t) = nullptr;
         int32_t (*get_thermals_)(void*, Thermals*) = nullptr;
