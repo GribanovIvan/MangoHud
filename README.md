@@ -354,7 +354,6 @@ Parameters that are enabled by default have to be explicitly disabled. These (cu
 | `bicubic`                          | Force bicubic filtering                                                               |
 | `blacklist`                        | Add a program to the blacklist. e.g `blacklist=vkcube,WatchDogs2.exe`                 |
 | `cellpadding_y`                    | Set the vertical cellpadding, default is `-0.085` |
-| `cgroup_mem`                       | Display memory used by the app's cgroup when it runs in a systemd app unit (`app.slice/app-*`). It includes everything in that cgroup, such as the launcher if they share one: anon + shmem, which includes GPU buffers on shmem-backed drivers (e.g. msm, i915 iGPU) but not TTM ones (e.g. amdgpu) |
 | `control=`                         | Sets up a unix socket with a specific name that can be connected to with mangohud-control.<br>I.e. `control=mangohud` or `control=mangohud-%p` (`%p` will be replaced by process id)    |
 | `core_load_change`                 | Change the colors of cpu core loads, uses the same data from `cpu_load_value` and `cpu_load_change` |
 | `core_load`                        | Display load & frequency per core                                                     |
@@ -364,7 +363,6 @@ Parameters that are enabled by default have to be explicitly disabled. These (cu
 | `cpu_load_color`                   | Set the colors for the gpu load change low, medium and high. e.g `cpu_load_color=0000FF,00FFFF,FF00FF` |
 | `cpu_load_value`                   | Set the values for medium and high load e.g `cpu_load_value=50,90`                    |
 | `cpu_mhz`                          | Show the CPUs current MHz                                                             |
-| `cpu_max_core_load`                | Display the load of the busiest CPU core next to the CPU load, colored by `cpu_load_change` |
 | `cpu_power`<br>`gpu_power`         | Display CPU/GPU draw in watts                                                         |
 | `cpu_temp`<br>`gpu_temp`<br>`gpu_junction_temp`<br>`gpu_mem_temp`           | Display current CPU/GPU temperature                                                  |
 | `cpu_custom_temp_sensor`           | Use custom hwmon sensor for cpu temperature. e.g `cpu_custom_temp_sensor=cpuss0_2,temp3_input`.|
@@ -406,7 +404,7 @@ Parameters that are enabled by default have to be explicitly disabled. These (cu
 | `frame_count`                      | Display frame count                                                                   |
 | `frametime`                        | Display frametime next to FPS text                                                    |
 | `frame_timing_detailed`            | Display frame timing in a more detailed chart                                         |
-| `fsr`                              | Display the status of gamescope's upscaler (FSR, NIS, SGSR, etc.)                     |
+| `fsr`                              | Display the status of FSR (only works in gamescope)                                   |
 | `hdr`                              | Display the status of HDR (only works in gamescope)                                   |
 | `refresh_rate`                     | Display the current refresh rate (only works in gamescope)                            |
 | `full`                             | Enable most of the toggleable parameters (currently excludes `histogram`)             |
@@ -419,6 +417,7 @@ Parameters that are enabled by default have to be explicitly disabled. These (cu
 | `gpu_load_value`                   | Set the values for medium and high load e.g `gpu_load_value=50,90`                    |
 | `gpu_name`                         | Display GPU name from pci.ids                                                         |
 | `gpu_voltage`                      | Display GPU voltage                                                                   |
+| `gpu_voltage_pci_dev`              | Show GPU voltage only for the given PCI address, e.g. `0000:01:00.0`                  |
 | `gpu_list`                         | List GPUs to display `gpu_list=0,1`                                                   |
 | `gpu_efficiency`                   | Display GPU efficiency in frames per joule                                            |
 | `gpu_power_limit`                  | Display GPU power limit                                                               |
