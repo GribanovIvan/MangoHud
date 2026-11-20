@@ -32,7 +32,6 @@ overlay_spv = []
 foreach s : ['overlay.frag', 'overlay.vert']
   overlay_spv += custom_target(
     s + '.spv.h', input : s, output : s + '.spv.h',
-    depend_files : files('../mangohud-next/client/colors.glsl'),
     command : [glslang, '-V', '-x', '-o', '@OUTPUT@', '@INPUT@'])
 endforeach
 
@@ -40,8 +39,6 @@ util_files = files(
   'mesa/util/os_socket.c',
   'mesa/util/os_time.c',
 )
-
-next_client_inc = include_directories('../mangohud-next/client')
 
 vklayer_files = files(
   'hud_elements.cpp',
@@ -56,6 +53,7 @@ vklayer_files = files(
   'blacklist.cpp',
   'file_utils.cpp',
   'nvidia.cpp',
+  'nvapi_sensors.cpp',
   'gpu_fdinfo.cpp',
   'amdgpu.cpp'
 )
@@ -82,7 +80,7 @@ if is_unixy
     'iostats.cpp',
     'notify.cpp',
     'elfhacks.c',
-    '../mangohud-next/client/real_dlsym.c',
+    'real_dlsym.c',
     'pci_ids.cpp',
     'battery.cpp',
     'control.cpp',
@@ -208,7 +206,7 @@ mangohud_static_lib = static_library(
     windows_deps,
     implot_dep,
     mangohud_version_dep],
-  include_directories : [inc_common, next_client_inc],
+  include_directories : [inc_common],
   link_args : link_args,
   link_with: mangohud_legacy_gpu_wrapper,
   install_dir : libdir_mangohud,
@@ -251,7 +249,7 @@ mangohud_opengl_shared_lib = shared_library(
     dep_vulkan_utility_libraries,
     windows_deps,
     implot_dep],
-  include_directories : [inc_common, next_client_inc],
+  include_directories : [inc_common],
   link_args : link_args,
   link_with: mangohud_static_lib,
   install_dir : libdir_mangohud,
@@ -287,7 +285,6 @@ if get_option('mangoapp')
       dep_x11,
       dep_wayland_client,
       glfw3_dep,
-      xi_dep,
       implot_dep
     ],
     include_directories : [inc_common],
@@ -307,31 +304,23 @@ mangoapp = executable(
 )
 endif
 if is_unixy
-  shim_files = []
-  shim_deps = [dep_dl]
-  shim_args = pre_args
-  if get_option('with_wayland').enabled() and dep_wayland_client.version().version_compare('>=1.24')
-    shim_files += files('gl/wayland_color.cpp')
-    shim_args += '-DHAVE_WAYLAND_COLOR_TRACKING'
-    shim_deps += [dep_wayland_client, dep_pthread, spdlog_dep,
-                  dearimgui_dep.partial_dependency(compile_args: true, includes: true)]
-  endif
   mangohud_shim = shared_library(
     'MangoHud_shim',
     files(
       'gl/shim.c',
-      '../mangohud-next/client/real_dlsym.c',
+      'real_dlsym.c',
       'elfhacks.c'
     ),
-    shim_files,
-    dependencies : shim_deps,
+    dependencies : [
+      dep_dl
+    ],
     c_args : [
-      shim_args
+      pre_args
     ],
     cpp_args : [
-      shim_args
+      pre_args
     ],
-    include_directories : [inc_common, next_client_inc],
+    include_directories : [inc_common],
     install_dir : libdir_mangohud,
     install: true
   )
